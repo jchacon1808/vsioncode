@@ -150,5 +150,8 @@ algo instalable.
   amplitud.
 - **Lo invisible no existe.** Una capacidad que la interfaz no muestra no existe
   para quien la usa; se descubre abriendo vsioncode, no con `cargo test`.
-- **El nombre.** «vsioncode» puede confundirse con «VS Code». Está libre en npm,
-  crates.io y GitHub; cuanto más tarde se decida, más caro es el cambio.
+- **El nombre.** «vsioncode» puede confundirse con «VS Code». Desde el
+  2026-08-31 el repositorio público es `jchacon1808/vsioncode`, así que el
+  cambio ya no es gratis: habría que reetiquetar, romper la URL del instalador
+  y dejar sin sitio a quien ya lo tenga. Sigue libre en npm y crates.io, y ahí
+  es donde todavía se decide barato.

@@ -959,6 +959,9 @@ carga 2, 1739 y 13737. Antes de tocar el audio, conviene mirar `uptime`.
 | `~/.config/vsioncode/skills`, `.vsioncode/skills` | Skills, propias y del proyecto. Solo lectura. |
 | `tests/circuito.rs` | Pruebas de integración con un `bash` real. |
 | `examples/` | Bancos de ensayo sin abrir la interfaz. |
+| `instalar.sh` | Instalador: descarga el binario publicado o compila. |
+| `.github/workflows/` | Integración continua y publicación por etiqueta. |
+| `imagenes/` | Capturas de la interfaz para el README. |
 
 Programas externos, todos detectados al arrancar y todos opcionales: `claude`,
 `uv`, `piper`, `aplay`, `arecord`.
@@ -977,8 +980,9 @@ Programas externos, todos detectados al arrancar y todos opcionales: `claude`,
   distinta», el modelo de seguridad deja de significar nada.
 - **Los avisos improcedentes.** Véase §6.
 - **El nombre.** «vsioncode» puede confundirse con «VS Code» al pronunciarlo.
-  Está libre en npm, crates.io y GitHub; cuanto más tarde se decida, más caro
-  resulta el cambio.
+  Publicado desde el 2026-08-31 en `github.com/jchacon1808/vsioncode`, así que
+  cambiarlo ya cuesta: reetiquetar, romper la URL del instalador y dejar sin
+  sitio a quien lo tenga instalado. Sigue libre en npm y crates.io.
 
 ---
 
