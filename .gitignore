@@ -1,0 +1,21 @@
+# Lo que compila cargo.
+/target
+
+# Ajustes locales del asistente: son de esta máquina y de esta persona.
+/.claude
+
+# Restos que dejan los editores y los escritorios.
+*.swp
+*~
+.DS_Store
+
+# Instrucciones locales del asistente: no forman parte del proyecto.
+/CLAUDE.md
+
+# Notas de traspaso entre sesiones: son el estado de una mesa de trabajo, no
+# documentación. Lo que sí lo es vive en docs/.
+/vsion.md
+
+# El encargo de la sesión en curso, que lo escribe el usuario y se borra al cerrar.
+# Faltaba aquí, y por eso se coló dentro del commit 20514f2.
+/tarea.md

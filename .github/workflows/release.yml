@@ -1,0 +1,142 @@
+name: Publicación
+
+# Una etiqueta «vX.Y.Z» publica los binarios de esa versión. `workflow_dispatch`
+# permite ensayar la construcción sin etiquetar nada: sube los paquetes como
+# artefactos y no toca la página de publicaciones.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # La etiqueta y la versión del manifiesto tienen que decir lo mismo. Si no,
+  # se publica un paquete llamado v0.2.0 cuyo `--version` responde 0.1.0, y eso
+  # no se descubre hasta que alguien lo instala.
+  coherencia:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: La etiqueta coincide con Cargo.toml
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          etiqueta="${GITHUB_REF_NAME#v}"
+          manifiesto=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          echo "etiqueta: $etiqueta · Cargo.toml: $manifiesto"
+          [ "$etiqueta" = "$manifiesto" ] || {
+            echo "::error::La etiqueta $GITHUB_REF_NAME no corresponde con la versión $manifiesto del manifiesto."
+            exit 1
+          }
+
+  construir:
+    needs: coherencia
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Ubuntu 22.04 y no «latest» a propósito: el binario queda enlazado
+          # contra la glibc del runner, así que compilar en la más nueva lo
+          # dejaría sin arrancar en cualquier distribución con dos años. 22.04
+          # trae glibc 2.35, que cubre de Debian 12 y Ubuntu 22.04 en adelante.
+          - runner: ubuntu-22.04
+            objetivo: x86_64-unknown-linux-gnu
+          - runner: ubuntu-22.04-arm
+            objetivo: aarch64-unknown-linux-gnu
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.objetivo }}
+
+      - name: Compilar
+        run: cargo build --release --locked
+
+      # Se publica lo que funciona, no lo que compila. Los tests de circuito
+      # arrancan un bash de verdad, que es donde han aparecido los fallos.
+      - name: Pruebas
+        run: cargo test --release --locked
+
+      - name: Empaquetar
+        id: paquete
+        run: |
+          version="${GITHUB_REF_NAME}"
+          # En un ensayo manual no hay etiqueta: se nombra por el commit para
+          # que el artefacto no se llame como una versión que no existe.
+          case "$version" in
+            v*) ;;
+            *) version="prueba-$(git rev-parse --short HEAD)" ;;
+          esac
+
+          nombre="vsioncode-${version}-${{ matrix.objetivo }}"
+          mkdir -p "dist/$nombre"
+          cp target/release/vsioncode "dist/$nombre/"
+          cp README.md LICENSE-MIT LICENSE-APACHE "dist/$nombre/"
+          tar czf "dist/${nombre}.tar.gz" -C dist "$nombre"
+          (cd dist && sha256sum "${nombre}.tar.gz" > "${nombre}.tar.gz.sha256")
+
+          echo "nombre=$nombre" >> "$GITHUB_OUTPUT"
+          ls -l "dist/${nombre}.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.paquete.outputs.nombre }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          retention-days: 7
+
+  publicar:
+    needs: construir
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: descargas
+          merge-multiple: true
+
+      # Un único SHA256SUMS con todos los paquetes: es lo que lee el
+      # instalador, y un fichero por arquitectura le obligaría a adivinar
+      # cuál pedir.
+      - name: Reunir los hashes
+        run: |
+          cd descargas
+          cat *.sha256 > SHA256SUMS
+          rm -f *.sha256
+          cat SHA256SUMS
+
+      - name: Publicar
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            descargas/*.tar.gz
+            descargas/SHA256SUMS
+          generate_release_notes: true
+          body: |
+            ## Instalación
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/instalar.sh | bash
+            ```
+
+            Descarga el paquete de esta versión para tu arquitectura, comprueba
+            su hash y lo deja en `~/.local/bin`. Si no hay binario para tu
+            equipo, compila desde el código.
+
+            Requisitos: Linux con glibc 2.35 o superior (Ubuntu 22.04, Debian 12,
+            Fedora 36 y posteriores) y `bash`. Para cualquier otro sistema:
+
+            ```bash
+            cargo install --git https://github.com/${{ github.repository }} --tag ${{ github.ref_name }} --locked
+            ```

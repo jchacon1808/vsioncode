@@ -1,0 +1,99 @@
+[package]
+name = "vsioncode"
+version = "0.1.0"
+edition = "2024"
+description = "Una terminal donde el humano y la IA miran la misma pantalla: shell real y agente compartiendo el mismo registro de lo ejecutado."
+authors = ["Jesús Eduardo Chacón"]
+# Doble licencia, el estándar del ecosistema Rust: MIT por simplicidad y
+# compatibilidad, Apache-2.0 por su cesión explícita de patentes. Quien lo use
+# elige la que le convenga.
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/jchacon1808/vsioncode"
+homepage = "https://github.com/jchacon1808/vsioncode"
+documentation = "https://github.com/jchacon1808/vsioncode/blob/main/docs/ARQUITECTURA.md"
+keywords = ["terminal", "tui", "agente", "shell", "ia"]
+categories = ["command-line-utilities", "development-tools"]
+rust-version = "1.90"
+# Lo que no hace falta para compilar no viaja en el paquete: los bancos de
+# ensayo y la documentación interna son del repositorio, no de la biblioteca.
+exclude = ["/docs", "/.github", "/instalar.sh"]
+
+[dependencies]
+anyhow = "1.0.104"
+# El portapapeles del sistema, dentro del binario y no como programa aparte.
+#
+# Es la primera dependencia que toca el escritorio, y rompe el criterio que
+# rige todo lo demás —los motores pesados viven fuera—. Se hizo a sabiendas:
+# pegar una captura se usa a diario, y depender de que cada uno instale
+# `wl-clipboard` convierte una función en un trámite. Medido antes de decidir:
+# **653 KB**, casi todos del protocolo Wayland y del cliente X11.
+#
+# Sin `default-features` a propósito: las traía el crate `image` entero para
+# convertir formatos, que aquí no hace falta. La imagen se codifica con `png`,
+# que es lo único que se necesita.
+arboard = { version = "3.6.1", default-features = false, features = [
+    "image-data",
+    "wayland-data-control",
+] }
+base64 = "0.23.1"
+color-eyre = "0.6.5"
+crossterm = { version = "0.29", features = ["event-stream"] }
+dirs = "6.0.0"
+eventsource-stream = "0.2.3"
+futures = "0.3.34"
+# Para volcar a fichero la imagen que llega del portapapeles: `arboard` la
+# entrega en RGBA crudo y hay que codificarla.
+png = "0.18.1"
+portable-pty = "0.9.0"
+ratatui = "0.30"
+# Solo lo imprescindible para hablar con proveedores de modelos:
+#   rustls-no-provider  → TLS sin OpenSSL del sistema (binario portable) y,
+#                         sobre todo, SIN el proveedor por defecto
+#   webpki-roots        → certificados raíz embebidos, sin leer los del sistema
+#   http2               → NVIDIA y Gemini no responden por HTTP/1.1: la
+#                         petición se queda colgada sin error, que es la peor
+#                         forma de fallar. Groq sí tolera 1.1, así que el
+#                         problema solo aparece al probar el segundo proveedor.
+#   stream              → leer la respuesta según llega (SSE)
+#   json, charset       → serializar la petición y decodificar la respuesta
+#
+# Lo de «no-provider» no es un capricho. La feature `rustls` de reqwest arrastra
+# `aws-lc-rs`, que compila una biblioteca criptográfica entera en C: medido, el
+# binario pasaba de 1,8 a 5,9 MB. Con `ring`, que se declara aparte, se paga
+# una fracción de eso. Hay que instalarlo a mano al arrancar (ver `main.rs`).
+#
+# Fuera quedan cookies, proxies, gzip, brotli y multipart: nada de eso hace
+# falta para un POST con streaming, y todo eso pesa.
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls-no-provider",
+    "webpki-roots",
+    "http2",
+    "stream",
+    "json",
+    "charset",
+] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+textwrap = "0.16.2"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "process", "io-util", "sync", "time", "signal"] }
+toml = "1.1.4"
+tui-term = "0.3.4"
+unicode-width = "0.2.2"
+vt100 = "0.16.2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Los tests de circuito arrancan un shell de verdad y le mandan megas por el
+# pseudoterminal. Sin optimizar, el emulador de terminal tarda demasiado y las
+# pruebas miden la lentitud del compilador en vez del producto.
+[profile.test]
+opt-level = 2
+
+[profile.dev]
+opt-level = 1

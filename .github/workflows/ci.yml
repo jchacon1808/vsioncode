@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # El peso es una característica declarada del proyecto. Si se dispara hay que
+  # enterarse en el momento y no tres meses después. No es un techo dogmático
+  # (si una mejora legítima lo necesita, se sube a propósito en el mismo
+  # cambio): lo que vigila esto es el crecimiento silencioso, no el peso
+  # consciente.
+  LIMITE_KB: 6000
+
+jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formato
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --release
+
+      - name: Tests de documentación
+        run: cargo test --release --doc
+
+      # Los dos scripts se ejecutan en la máquina de quien instala, y uno de
+      # ellos llega por una tubería desde internet: un fallo ahí no lo atrapa
+      # ninguna prueba de Rust.
+      - name: Scripts de shell
+        run: |
+          shellcheck instalar.sh
+          # El fichero de arranque usa `${ ...; }` de bash 5.3, que shellcheck
+          # 0.10 todavía no reconoce (SC2127), y elige entre array y cadena
+          # según la versión de bash: al ver las dos ramas cree que se mezclan
+          # los tipos (SC2128, SC2178). Las tres son falsos positivos aquí.
+          shellcheck --exclude=SC2127,SC2128,SC2178 shell/vsion-init.bash
+
+      - name: Tamaño del binario
+        run: |
+          cargo build --release
+          kb=$(du -k target/release/vsioncode | cut -f1)
+          echo "Binario: ${kb} KB (límite ${LIMITE_KB} KB)"
+          if [ "$kb" -gt "$LIMITE_KB" ]; then
+            echo "::error::El binario ha superado el límite declarado."
+            exit 1
+          fi
