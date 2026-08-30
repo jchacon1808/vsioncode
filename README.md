@@ -61,19 +61,11 @@ duración y el directorio. No hay nada que pegar porque nunca hubo que copiar.
 
 ## En una pantalla
 
-```
-╭ shell ───────────────────────────╮╭ agente · groq · qwen3.6-27b ─╮
-│ $ cargo build                    ││    el build ha fallado       │
-│    Compiling vsioncode v0.1.0    ││                              │
-│ error[E0308]: mismatched types   ││ ·· Es la línea 42: devuelves │
-│   --> src/app.rs:42:18           ││    &str donde se espera      │
-│                                  ││    String.                   │
-│ $ ▊                              ││                              │
-│                                  ││    ▌ cargo build 2>&1 | head │
-│                                  ││                              │
-╰──────────────────────────────────╯╰──────────────────────────────╯
- SUGERIR ● captura ~/vsioncode ✗ 101 cargo build   Alt+E explicar
-```
+![La pantalla de vsioncode: el shell a la izquierda, el asistente a la derecha y la barra de estado abajo](imagenes/pantalla-principal.png)
+
+A la izquierda, tu `bash`. A la derecha, el asistente. Abajo, la barra dice
+siempre tres cosas: en qué modo estás, si la captura está encendida y en qué
+directorio. Nada de eso se esconde ni se desvanece.
 
 ---
 
@@ -256,74 +248,21 @@ La primera vez que se abre en un equipo no hay configuración, así que vsioncod
 muestra la ventana de **configuración inicial**: explica qué es, enumera los
 servicios que puede usar y pide lo mínimo para empezar.
 
-```
-╭ config. inicial ───────────────────────────────────────────────╮
-│                                                                │
-│          ╭─────────────────────────────╮                       │
-│          │    VSIONCODE      v0.1.0    │                       │
-│          ╰─────────────────────────────╯                       │
-│                                                                │
-│ Terminal de trabajo con asistencia de IA integrada.            │
-│                                                                │
-│ Un shell completo y un asistente que observa lo que ejecutas   │
-│ comparten el mismo registro de comandos, salidas y códigos de  │
-│ error. Cuando algo falla, el contexto ya está donde hace       │
-│ falta: no hay nada que copiar.                                 │
-│                                                                │
-│ Cuatro modos de trabajo definen quién ejecuta y con cuánta     │
-│ autonomía: desde solo observar hasta encargarle una tarea      │
-│ completa. Todo ocurre en tu terminal, a la vista, con límite   │
-│ de pasos y freno inmediato.                                    │
-│                                                                │
-│ Queda un paso: elegir el proveedor de modelos. Sirve una       │
-│ suscripción existente o la clave gratuita de cualquiera de los │
-│ servicios.                                                     │
-╰ ↵ empezar · Esc dejarlo para luego ────────────────────────────╯
-```
+![La ventana de configuración inicial, con los servicios ya configurados](imagenes/config-portada.png)
+
+En un equipo recién instalado esa ventana termina pidiéndote que elijas
+proveedor; en la captura ya hay cuatro configurados, que es como se ve al
+reabrirla más tarde.
 
 El segundo paso es la lista de proveedores, con el estado de cada uno y su
 página de claves:
 
-```
-╭ config. inicial ─────────────────────────────────────────────────╮
-│ Proveedores  ·  ↵ configura el señalado                          │
-│                                                                  │
-│  ✓ Claude Code · suscripción Anthropic   ● predeterminado        │
-│      Usa la sesión de Claude Code ya iniciada. Sin clave de API. │
-│  ▸ Groq                                  sin configurar          │
-│      El más rápido. Capa gratuita: 1.000 peticiones al día.      │
-│      ↗ https://console.groq.com/keys   [O] abrir · o clic        │
-│    NVIDIA NIM                            sin configurar          │
-│      Catálogo amplio. Capa gratuita: ~40 peticiones por minuto.  │
-│    Google AI Studio                      clave detectada         │
-│    Ollama · en este equipo               sin configurar          │
-│                                                                  │
-│  ▸ Guardar y empezar a trabajar                                  │
-╰ ↑↓ elegir · ↵ configurar · O abrir enlace · D por defecto ───────╯
-```
+![La lista de proveedores, con el estado de cada uno y su página de claves](imagenes/config-proveedores.png)
 
 Al elegir un proveedor con clave, la pantalla siguiente separa los dos pasos —de
 dónde sale la clave y dónde se pega— y dice exactamente dónde acabará guardada:
 
-```
-╭ config. inicial ─────────────────────────────────────────────────╮
-│ Groq  ·  clave de API                                            │
-│                                                                  │
-│   1 Crea una clave en tu cuenta:                                 │
-│       ↗ https://console.groq.com/keys                            │
-│       [O] la abre en el navegador.                               │
-│                                                                  │
-│   2 Pégala con Ctrl+V, o escríbela:                              │
-│                                                                  │
-│       ╭──────────────────────────────────────────╮               │
-│       │  ••••••••••••••••••••••••••••••••••ghij  │               │
-│       ╰──────────────────────────────────────────╯               │
-│                                                                  │
-│   Se guarda como GROQ_API_KEY en ~/.config/vsioncode/.env         │
-│   (permisos 600). La configuración solo guarda el nombre de la    │
-│   variable, nunca la clave.                                      │
-╰ ↵ guardar · Ctrl+V pegar · Esc volver ───────────────────────────╯
-```
+![La pantalla que pide la clave de Groq, diciendo dónde se guardará](imagenes/config-clave.png)
 
 Al terminar, vsioncode escribe dos ficheros y arranca con ellos sin necesidad de
 reiniciar:
@@ -401,18 +340,7 @@ la suscripción de Claude para cuando hay que pensar de verdad.
 `/modelo` abre un selector con los modelos agrupados por proveedor y el tiempo
 que tarda cada uno en emitir la primera palabra, medido con este mismo cliente:
 
-```
-╭ modelo ──────────────────────────────────────────────────────────╮
-│  claude · suscripción                                            │
-│    ● sonnet                                                      │
-│      haiku                    más rápido, para preguntas cortas  │
-│  groq                                                            │
-│      qwen/qwen3.6-27b         el más rápido de todos — 165 ms    │
-│      openai/gpt-oss-120b      equilibrado — 642 ms               │
-│      groq/compound            busca en internet por su cuenta    │
-│  nvidia                       le falta la clave                  │
-╰ ↑↓ elegir · ↵ cambiar · Esc cerrar ──────────────────────────────╯
-```
+![El selector de modelos, agrupados por proveedor y con su latencia medida](imagenes/selector-modelos.png)
 
 La mayoría de los modelos actuales razonan por defecto, lo que en una terminal
 se traduce en segundos de pantalla quieta. Cada modelo declara en el TOML cómo
@@ -636,10 +564,15 @@ que recorre `Ctrl+a` … `Ctrl+z` y falla si alguna vez se intercepta uno.
 | `/` | menú de comandos |
 | `←` | con la caja vacía, la barra de delegar en un subagente |
 
-Las teclas de función duplican los atajos y se documentan en pantalla. Mientras
-un programa ocupe la pantalla alterna (`htop` usa F1-F10) sus teclas vuelven a
-ser suyas; los atajos con `Alt` siguen disponibles. `F12` es la excepción: es la
-salida de emergencia y responde siempre, tenga la pantalla quien la tenga.
+Las teclas de función duplican los atajos y **la tabla entera está dentro**, en
+`Alt+H`: no hay que volver aquí a buscarla.
+
+![La ayuda del teclado dentro de vsioncode, con Alt+H](imagenes/ayuda-teclado.png)
+
+Mientras un programa ocupe la pantalla alterna (`htop` usa F1-F10) sus teclas
+vuelven a ser suyas; los atajos con `Alt` siguen disponibles. `F12` es la
+excepción: es la salida de emergencia y responde siempre, tenga la pantalla
+quien la tenga.
 
 > La única combinación de readline que se ocupa es `Alt+L` —era
 > `downcase-word`—, decidido de forma explícita y documentado en el código.

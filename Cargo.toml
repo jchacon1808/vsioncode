@@ -17,7 +17,7 @@ categories = ["command-line-utilities", "development-tools"]
 rust-version = "1.90"
 # Lo que no hace falta para compilar no viaja en el paquete: los bancos de
 # ensayo y la documentación interna son del repositorio, no de la biblioteca.
-exclude = ["/docs", "/.github", "/instalar.sh"]
+exclude = ["/docs", "/.github", "/imagenes", "/instalar.sh"]
 
 [dependencies]
 anyhow = "1.0.104"
