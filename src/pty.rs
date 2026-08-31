@@ -139,14 +139,11 @@ impl Shell {
             })
             .pty("no pude abrir el pseudoterminal")?;
 
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".into());
-        let mut cmd = CommandBuilder::new(if shell.ends_with("bash") {
-            shell
-        } else {
-            "/bin/bash".into()
-        });
+        let mut cmd = CommandBuilder::new(buscar_bash()?);
         cmd.arg("--rcfile");
-        cmd.arg(&rc);
+        // Frontera de salida: `rc` es una ruta nativa —en Windows,
+        // `C:\Users\...`— y quien la va a abrir es bash.
+        cmd.arg(crate::rutas::a_posix(&rc.display().to_string()).as_ref());
         cmd.arg("-i");
         cmd.cwd(std::env::current_dir()?);
         cmd.env("TERM", "xterm-256color");
@@ -442,18 +439,202 @@ fn limpiar_huerfanos(dir: &Path) {
     }
 }
 
+/// Qué `bash` se arranca dentro del panel.
+///
+/// No es el shell del usuario: es **bash**, siempre, porque la captura entera
+/// —lo único que hace que vsioncode sea vsioncode— es un fichero de arranque de
+/// bash. Respetar `$SHELL` cuando es `zsh` o `fish` daría un panel bonito que
+/// no registra nada.
+#[cfg(unix)]
+fn buscar_bash() -> Result<std::path::PathBuf> {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".into());
+    Ok(std::path::PathBuf::from(if shell.ends_with("bash") {
+        shell
+    } else {
+        "/bin/bash".into()
+    }))
+}
+
+/// En Windows el bash es el de **Git for Windows**, y hay que ir a buscarlo.
+///
+/// No hay `$SHELL` ni `/bin/bash`. Se prueban cuatro sitios en este orden y se
+/// coge el primero que exista:
+///
+/// 1. `%CLAUDE_CODE_GIT_BASH_PATH%`, el mismo ajuste que ya usa Claude Code.
+///    Quien lo tenga puesto no tiene que aprenderse otra variable nuestra.
+/// 2. El registro, que es donde el instalador de Git deja la verdad aunque
+///    alguien lo haya puesto en un disco raro.
+/// 3. Los dos sitios de siempre, por si el registro no está.
+/// 4. El `PATH`, el último porque es el que más miente (ver abajo).
+///
+/// Siempre `bin\bash.exe`, nunca `usr\bin\bash.exe` ni `git-bash.exe`: el
+/// primero es el lanzador que espera un terminal por delante —que somos
+/// nosotros—, y `git-bash.exe` abre su propia ventana de mintty.
+///
+/// Que no aparezca es fatal y se dice entero. Es el único componente
+/// «opcional» que en realidad es obligatorio: sin él no hay shell que arrancar,
+/// y callarlo dejaría el mismo agujero negro que arrancar sin cerebro.
+#[cfg(windows)]
+fn buscar_bash() -> Result<std::path::PathBuf> {
+    use std::path::PathBuf;
+
+    let mut candidatos: Vec<PathBuf> = Vec::new();
+
+    if let Ok(p) = std::env::var("CLAUDE_CODE_GIT_BASH_PATH") {
+        candidatos.push(PathBuf::from(p));
+    }
+    if let Some(raiz) = git_del_registro() {
+        candidatos.push(PathBuf::from(raiz).join("bin").join("bash.exe"));
+    }
+    for var in ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"] {
+        if let Ok(dir) = std::env::var(var) {
+            candidatos.push(PathBuf::from(dir).join("Git").join("bin").join("bash.exe"));
+        }
+    }
+    candidatos.extend(bash_del_path());
+
+    for c in &candidatos {
+        if c.is_file() {
+            return Ok(c.clone());
+        }
+    }
+
+    // Literales concatenados y no una cadena con `\` al final de cada línea:
+    // la continuación se come los espacios del principio, y con ella la
+    // sangría de la URL y del comando, que es justo lo que hay que copiar.
+    Err(eyre!(concat!(
+        "no encuentro el bash de Git for Windows, y sin él no hay nada que arrancar.\n",
+        "\n",
+        "La captura de vsioncode —comando, salida, código de salida— es un fichero de\n",
+        "arranque de bash, así que el shell del panel tiene que ser bash. En Windows\n",
+        "el que sirve viene con Git for Windows:\n",
+        "\n",
+        "    https://git-scm.com/downloads/win\n",
+        "\n",
+        "Si ya lo tienes instalado en otro sitio, dilo con:\n",
+        "\n",
+        "    setx CLAUDE_CODE_GIT_BASH_PATH \"C:\\ruta\\a\\Git\\bin\\bash.exe\"\n",
+        "\n",
+        "Y si lo que quieres es WSL2, ahí vsioncode se instala dentro de la\n",
+        "distribución y no desde Windows.",
+    )))
+}
+
+/// `HKLM\SOFTWARE\GitForWindows\InstallPath`, que es donde lo deja el
+/// instalador.
+#[cfg(windows)]
+fn git_del_registro() -> Option<String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::System::Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ, RegGetValueW};
+
+    fn ancho(s: &str) -> Vec<u16> {
+        std::ffi::OsStr::new(s)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect()
+    }
+
+    let clave = ancho("SOFTWARE\\GitForWindows");
+    let valor = ancho("InstallPath");
+    // Dos llamadas: la primera pregunta el tamaño, la segunda lee. Reservar un
+    // buffer «grande» y confiar es como se escriben los desbordamientos.
+    let mut bytes: u32 = 0;
+    let r = unsafe {
+        RegGetValueW(
+            HKEY_LOCAL_MACHINE,
+            clave.as_ptr(),
+            valor.as_ptr(),
+            RRF_RT_REG_SZ,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            &mut bytes,
+        )
+    };
+    if r != 0 || bytes == 0 {
+        return None;
+    }
+
+    let mut buf = vec![0u16; bytes as usize / 2 + 1];
+    let mut bytes2 = bytes;
+    let r = unsafe {
+        RegGetValueW(
+            HKEY_LOCAL_MACHINE,
+            clave.as_ptr(),
+            valor.as_ptr(),
+            RRF_RT_REG_SZ,
+            std::ptr::null_mut(),
+            buf.as_mut_ptr().cast(),
+            &mut bytes2,
+        )
+    };
+    if r != 0 {
+        return None;
+    }
+
+    let fin = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    Some(String::from_utf16_lossy(&buf[..fin]))
+}
+
+/// Los `bash.exe` que hay en el `PATH`, saltándose el de `System32`.
+///
+/// Ese no es un shell: es el lanzador de WSL. Arrancarlo abriría una
+/// distribución entera, con otro sistema de ficheros y otras rutas, y lo que se
+/// vería es un vsioncode que edita ficheros que no son los que enseña.
+#[cfg(windows)]
+fn bash_del_path() -> Vec<std::path::PathBuf> {
+    let Ok(path) = std::env::var("PATH") else {
+        return Vec::new();
+    };
+    let system32 = std::env::var("SystemRoot")
+        .map(|r| format!("{r}\\System32").to_ascii_lowercase())
+        .unwrap_or_else(|_| "c:\\windows\\system32".into());
+
+    std::env::split_paths(&path)
+        .filter(|d| {
+            !d.display()
+                .to_string()
+                .to_ascii_lowercase()
+                .starts_with(&system32)
+        })
+        .map(|d| d.join("bash.exe"))
+        .collect()
+}
+
 /// ¿Existe todavía ese proceso?
 ///
-/// Fuera de Linux no hay `/proc`, y la respuesta honesta es «no lo sé». Se
-/// contesta que sí: equivocarse por exceso deja un fichero de sobra en un
-/// directorio temporal, y equivocarse por defecto le borra el suyo a un shell
-/// que está arrancando.
+/// Donde no se puede saber, la respuesta es que sí: equivocarse por exceso deja
+/// un fichero de sobra en un directorio temporal, y equivocarse por defecto le
+/// borra el suyo a un shell que está arrancando.
+#[cfg(not(windows))]
 fn vivo(pid: u32) -> bool {
     if cfg!(target_os = "linux") {
         Path::new(&format!("/proc/{pid}")).exists()
     } else {
         true
     }
+}
+
+/// En Windows no hay `/proc`, pero sí se puede saber: si `OpenProcess` con el
+/// permiso más pequeño que existe devuelve un manejador, el proceso está.
+///
+/// Se pide `PROCESS_QUERY_LIMITED_INFORMATION` a propósito: es el único que
+/// concede el sistema sobre un proceso de otra sesión o de otro usuario, y aquí
+/// no hace falta nada más que su existencia.
+#[cfg(windows)]
+fn vivo(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+
+    let h = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    if h.is_null() {
+        // Puede ser que no exista o que no nos dejen mirar. Se responde que sí
+        // por lo mismo de siempre: el error caro es borrar el fichero de un
+        // shell vivo, no dejar uno de más.
+        return unsafe { windows_sys::Win32::Foundation::GetLastError() }
+            != windows_sys::Win32::Foundation::ERROR_INVALID_PARAMETER;
+    }
+    unsafe { CloseHandle(h) };
+    true
 }
 
 /// Escribe el fichero de arranque de **este** shell y devuelve su ruta.

@@ -765,6 +765,12 @@ impl App {
         // SIGINT no se atiende aquí porque en modo crudo Ctrl+C es una tecla
         // más y llega por el teclado; la señal, si llega, viene de fuera y
         // entonces quiere decir lo mismo que las otras dos.
+        //
+        // En Windows no hay señales POSIX, pero la consola manda los mismos
+        // tres avisos con otro nombre: cerrar la ventana es `CTRL_CLOSE` —el
+        // SIGHUP de arriba, palabra por palabra—, apagar la máquina es
+        // `CTRL_SHUTDOWN`, y Ctrl+C llega igual. El reparto se conserva.
+        #[cfg(unix)]
         let mut señales = {
             use tokio::signal::unix::{SignalKind, signal};
             (
@@ -772,6 +778,11 @@ impl App {
                 signal(SignalKind::hangup())?,
                 signal(SignalKind::interrupt())?,
             )
+        };
+        #[cfg(windows)]
+        let mut señales = {
+            use tokio::signal::windows::{ctrl_c, ctrl_close, ctrl_shutdown};
+            (ctrl_shutdown()?, ctrl_close()?, ctrl_c()?)
         };
 
         let mut events = EventStream::new();

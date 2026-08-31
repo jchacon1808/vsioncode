@@ -209,11 +209,32 @@ fn cupo_para(disponible_mb: Option<u64>) -> usize {
 /// `MemAvailable` y no `MemFree`: el segundo no cuenta la caché reclamable y
 /// en un equipo con horas de uso da un número mucho peor que la realidad, que
 /// aquí se traduciría en no repartir nunca.
+#[cfg(not(windows))]
 fn memoria_disponible_mb() -> Option<u64> {
     let info = std::fs::read_to_string("/proc/meminfo").ok()?;
     let linea = info.lines().find(|l| l.starts_with("MemAvailable:"))?;
     let kb: u64 = linea.split_whitespace().nth(1)?.parse().ok()?;
     Some(kb / 1024)
+}
+
+/// Lo mismo en Windows, donde lo cuenta el sistema y no un fichero.
+///
+/// `ullAvailPhys` es el equivalente de `MemAvailable`: lo que se puede repartir
+/// sin empezar a paginar. Sin esto la respuesta era `None` y el cupo caía al
+/// mínimo de dos subagentes en un equipo de 64 GB, que funciona pero reparte
+/// mucho menos de lo que se puede.
+#[cfg(windows)]
+fn memoria_disponible_mb() -> Option<u64> {
+    use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+
+    let mut m = MEMORYSTATUSEX {
+        // La estructura lleva su propio tamaño dentro: es como el sistema sabe
+        // con qué versión de ella se le está hablando. Sin rellenarlo, la
+        // llamada falla.
+        dwLength: size_of::<MEMORYSTATUSEX>() as u32,
+        ..Default::default()
+    };
+    (unsafe { GlobalMemoryStatusEx(&mut m) } != 0).then_some(m.ullAvailPhys / (1024 * 1024))
 }
 
 /// Lo que le pide el agente principal a uno de los suyos.

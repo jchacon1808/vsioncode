@@ -3083,6 +3083,7 @@ dependencies = [
  "tui-term",
  "unicode-width",
  "vt100",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

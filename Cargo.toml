@@ -83,6 +83,18 @@ tui-term = "0.3.4"
 unicode-width = "0.2.2"
 vt100 = "0.16.2"
 
+# Solo en Windows, y solo para lo que no tiene equivalente portable: leer del
+# registro dónde se instaló Git for Windows —de ahí sale el `bash` que se
+# arranca—, preguntar si un proceso sigue vivo sin `/proc`, y cuánta memoria
+# queda sin `/proc/meminfo`. Son declaraciones, no código: en el binario no
+# pesan.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+] }
+
 [profile.release]
 lto = true
 codegen-units = 1
