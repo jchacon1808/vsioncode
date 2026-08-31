@@ -122,5 +122,9 @@ jobs:
       # ese bash bajo ConPTY y mira si el registro capta comando, salida y
       # código de salida. Es el único riesgo capaz de tumbar el puerto entero,
       # y es la única forma de verlo sin un Windows delante.
+      #
+      # `--no-fail-fast` a propósito: sin él, un fallo en las pruebas de la
+      # biblioteca aborta la tanda y `circuito.rs` no llega a ejecutarse —
+      # justo el que responde la única pregunta que importa aquí.
       - name: Tests
-        run: cargo test --release
+        run: cargo test --release --no-fail-fast
