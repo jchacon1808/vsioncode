@@ -528,21 +528,12 @@ fn limpiar_dichos_huerfanos() {
             .and_then(|r| r.split('-').next())
             .and_then(|p| p.parse::<u32>().ok())
         {
-            Some(pid) if vivo(pid) => {}
+            Some(pid) if crate::sistema::vivo(pid) => {}
             _ => {
                 let _ = std::fs::remove_file(e.path());
             }
         }
     }
-}
-
-/// ¿Existe todavía ese proceso?
-///
-/// Sin `/proc` no hay forma de saberlo, y entonces no se borra nada: más vale
-/// dejar basura que quitarle el fichero a una sesión que está hablando.
-fn vivo(pid: u32) -> bool {
-    let proc = std::path::Path::new("/proc");
-    !proc.is_dir() || proc.join(pid.to_string()).exists()
 }
 
 /// Sintetiza a un fichero.

@@ -69,6 +69,7 @@ consideración:
 | `bienvenida.rs` | La configuración inicial: servicios sugeridos, claves y generación o fusión del TOML. |
 | `privado.rs` | Cerrar un fichero o una carpeta a su dueño: modo `600`/`700` en Unix, ACL de una entrada y sin herencia en Windows. Y comprobarlo leyéndolo de vuelta. |
 | `rutas.rs` | La frontera con el sistema de ficheros del shell: `/c/Users/...` ↔ `C:\Users\...`, y buscar un ejecutable en el `PATH` sin dar por hecho el separador ni la extensión. |
+| `sistema.rs` | Las preguntas al sistema operativo sin respuesta portable en `std`. Hoy una: si un proceso sigue vivo. Estaba copiada en tres sitios y una de las copias se quedó atrás. |
 | `app.rs` | Estado y bucle principal. Arquitectura Elm. |
 | `ui.rs` | Vista, función pura del estado. |
 | `tema.rs` | Colores por función semántica, no por nombre. |

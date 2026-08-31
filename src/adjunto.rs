@@ -596,21 +596,12 @@ pub mod portapapeles {
             // del diseño anterior, que compartía un fichero por proceso: se
             // borra sin más.
             match resto.split('-').next().and_then(|p| p.parse::<u32>().ok()) {
-                Some(pid) if vivo(pid) => {}
+                Some(pid) if crate::sistema::vivo(pid) => {}
                 _ => {
                     let _ = std::fs::remove_file(e.path());
                 }
             }
         }
-    }
-
-    /// ¿Existe todavía ese proceso?
-    ///
-    /// Sin `/proc` no hay forma de saberlo, y entonces no se borra nada: más
-    /// vale dejar basura que llevarse por delante un adjunto en uso.
-    fn vivo(pid: u32) -> bool {
-        let proc = std::path::Path::new("/proc");
-        !proc.is_dir() || proc.join(pid.to_string()).exists()
     }
 
     /// Guarda la imagen del portapapeles como PNG en un temporal.

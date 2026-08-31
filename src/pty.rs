@@ -431,7 +431,7 @@ fn limpiar_huerfanos(dir: &Path) {
         // `init.<pid>.<n>.bash`. Lo que no encaje con eso es del diseño
         // anterior, que compartía un único fichero: se borra sin más.
         match nombre.split('.').nth(1).and_then(|p| p.parse::<u32>().ok()) {
-            Some(pid) if vivo(pid) => {}
+            Some(pid) if crate::sistema::vivo(pid) => {}
             _ => {
                 let _ = std::fs::remove_file(e.path());
             }
@@ -598,43 +598,6 @@ fn bash_del_path() -> Vec<std::path::PathBuf> {
         })
         .map(|d| d.join("bash.exe"))
         .collect()
-}
-
-/// ¿Existe todavía ese proceso?
-///
-/// Donde no se puede saber, la respuesta es que sí: equivocarse por exceso deja
-/// un fichero de sobra en un directorio temporal, y equivocarse por defecto le
-/// borra el suyo a un shell que está arrancando.
-#[cfg(not(windows))]
-fn vivo(pid: u32) -> bool {
-    if cfg!(target_os = "linux") {
-        Path::new(&format!("/proc/{pid}")).exists()
-    } else {
-        true
-    }
-}
-
-/// En Windows no hay `/proc`, pero sí se puede saber: si `OpenProcess` con el
-/// permiso más pequeño que existe devuelve un manejador, el proceso está.
-///
-/// Se pide `PROCESS_QUERY_LIMITED_INFORMATION` a propósito: es el único que
-/// concede el sistema sobre un proceso de otra sesión o de otro usuario, y aquí
-/// no hace falta nada más que su existencia.
-#[cfg(windows)]
-fn vivo(pid: u32) -> bool {
-    use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
-
-    let h = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
-    if h.is_null() {
-        // Puede ser que no exista o que no nos dejen mirar. Se responde que sí
-        // por lo mismo de siempre: el error caro es borrar el fichero de un
-        // shell vivo, no dejar uno de más.
-        return unsafe { windows_sys::Win32::Foundation::GetLastError() }
-            != windows_sys::Win32::Foundation::ERROR_INVALID_PARAMETER;
-    }
-    unsafe { CloseHandle(h) };
-    true
 }
 
 /// Escribe el fichero de arranque de **este** shell y devuelve su ruta.
