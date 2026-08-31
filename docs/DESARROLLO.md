@@ -130,10 +130,20 @@ scripts y una comprobación del tamaño del binario con un límite de 6 MB. El
 límite no es dogma: si una mejora legítima necesita más peso, se sube a
 propósito en el mismo cambio; lo que vigila es el crecimiento silencioso.
 
-`shell/vsion-init.bash` se analiza excluyendo SC2127, SC2128 y SC2178: usa
-`${ ...; }` de bash 5.3, que shellcheck 0.10 todavía no reconoce, y elige entre
-array y cadena según la versión de bash, lo que le hace creer que se mezclan los
-tipos. Las tres son falsos positivos comprobados; cualquier otro aviso es real.
+`shell/vsion-init.bash` se analiza excluyendo SC2128 y SC2178 —elige entre array
+y cadena según la versión de bash, y eso le hace creer que se mezclan los tipos—
+y también SC2127, que ya no salta desde la 0.10 pero se deja por lo de abajo.
+Los tres son falsos positivos comprobados; cualquier otro aviso es real.
+
+**La versión de shellcheck va fijada en el flujo de trabajo, con su hash, y no
+se usa la que traiga el runner.** `ubuntu-latest` pasó a 24.04 y con ella a
+shellcheck 0.9.0, que no avisa de nada: **se estrella** al leer el
+`${ builtin history 1; }` de bash 5.3 de la línea 116. Un `--exclude` no salva
+de eso porque no es un aviso. Se cayó una compilación que nadie había tocado,
+así que la herramienta se declara como se declara la glibc en `release.yml`.
+
+Si se ejecuta `shellcheck` a mano, conviene que sea la misma versión que el
+flujo de trabajo; una anterior a la 0.10 revienta con este fichero.
 
 ## 9. Publicar una versión
 

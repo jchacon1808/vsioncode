@@ -41,14 +41,36 @@ jobs:
       # Los dos scripts se ejecutan en la máquina de quien instala, y uno de
       # ellos llega por una tubería desde internet: un fallo ahí no lo atrapa
       # ninguna prueba de Rust.
+      #
+      # La versión va fijada y no se usa la del runner. `ubuntu-latest` pasó a
+      # 24.04, que trae shellcheck 0.9.0, y esa versión **se estrella** —no
+      # avisa: revienta con un «Unimplemented: OuterToken»— al leer el
+      # `${ builtin history 1; }` de bash 5.3 de `vsion-init.bash:116`. Un
+      # `--exclude` no salva de eso, porque no es un aviso que se pueda
+      # excluir. Se cayó una compilación que nadie había tocado, así que aquí
+      # la herramienta se declara igual que se declara la glibc en
+      # `release.yml`: con su versión y su hash.
       - name: Scripts de shell
+        env:
+          SHELLCHECK: "0.11.0"
+          SHA256: "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
         run: |
-          shellcheck instalar.sh
-          # El fichero de arranque usa `${ ...; }` de bash 5.3, que shellcheck
-          # 0.10 todavía no reconoce (SC2127), y elige entre array y cadena
-          # según la versión de bash: al ver las dos ramas cree que se mezclan
-          # los tipos (SC2128, SC2178). Las tres son falsos positivos aquí.
-          shellcheck --exclude=SC2127,SC2128,SC2178 shell/vsion-init.bash
+          # Fuera del checkout: lo que se descarga no es del proyecto.
+          paquete="$RUNNER_TEMP/shellcheck-v${SHELLCHECK}.linux.x86_64.tar.xz"
+          curl -fsSL -o "$paquete" \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK}/shellcheck-v${SHELLCHECK}.linux.x86_64.tar.xz"
+          echo "${SHA256}  ${paquete}" | sha256sum -c -
+          tar xf "$paquete" -C "$RUNNER_TEMP"
+          sc="$RUNNER_TEMP/shellcheck-v${SHELLCHECK}/shellcheck"
+          "$sc" --version
+
+          "$sc" instalar.sh
+          # El fichero de arranque elige entre array y cadena según la versión
+          # de bash, y al ver las dos ramas shellcheck cree que se mezclan los
+          # tipos (SC2128, SC2178). SC2127 era el `${ ...; }` de bash 5.3, que
+          # a partir de la 0.10 ya se reconoce; se deja excluido para que bajar
+          # de versión no vuelva a romper esto por sorpresa.
+          "$sc" --exclude=SC2127,SC2128,SC2178 shell/vsion-init.bash
 
       - name: Tamaño del binario
         run: |
