@@ -182,11 +182,18 @@ mod imp {
         Ok(())
     }
 
-    /// Se lee la ACL de vuelta y se cuenta: una entrada, y para nosotros.
+    /// Se lee la ACL de vuelta: tiene que haber entradas, y **todas** nuestras.
     ///
-    /// Contar es tan importante como mirar de quién es. Una lista con nuestra
-    /// entrada la primera y `Usuarios` la segunda pasaría cualquier
-    /// comprobación que se conforme con encontrarse a sí misma.
+    /// «Todas» y no «alguna»: una lista con nuestra entrada la primera y
+    /// `Usuarios` la segunda pasaría cualquier comprobación que se conforme con
+    /// encontrarse a sí misma.
+    ///
+    /// Y tampoco «exactamente una», que es lo que decía esto y falló en
+    /// Windows de verdad. Al pedir herencia sobre una carpeta, el sistema no
+    /// guarda un ACE: guarda **dos** —uno efectivo para la carpeta y otro
+    /// marcado como solo-heredable, para lo que nazca dentro—. Las dos son
+    /// nuestras y la carpeta está perfectamente cerrada; contar era la
+    /// pregunta equivocada.
     pub fn esta_cerrado(ruta: &Path) -> io::Result<bool> {
         let d = dueño()?;
         let nombre = ancho(ruta);
@@ -209,20 +216,22 @@ mod imp {
             }
 
             // Una DACL nula no es una lista vacía: quiere decir «acceso para
-            // todo el mundo», que es el peor caso. Y una lista con más de una
-            // entrada tiene a alguien más dentro. Las dos responden que no.
-            let cerrado = if acl.is_null() || (*acl).AceCount != 1 {
+            // todo el mundo», que es el peor caso. Y una lista vacía de verdad
+            // tampoco vale: no deja pasar a nadie, así que si nos la
+            // encontramos es que algo no hizo lo que dijo.
+            let cerrado = if acl.is_null() || (*acl).AceCount == 0 {
                 false
             } else {
-                let mut ace = std::ptr::null_mut();
-                if GetAce(acl, 0, &mut ace) == 0 {
-                    false
-                } else {
+                (0..u32::from((*acl).AceCount)).all(|i| {
+                    let mut ace = std::ptr::null_mut();
+                    if GetAce(acl, i, &mut ace) == 0 {
+                        return false;
+                    }
                     let ace = ace as *const ACCESS_ALLOWED_ACE;
                     // El SID empieza donde declara `SidStart` y sigue de ahí.
                     let sid = std::ptr::addr_of!((*ace).SidStart) as PSID;
                     EqualSid(sid, d.sid()) != 0
-                }
+                })
             };
 
             LocalFree(descriptor as HLOCAL);
