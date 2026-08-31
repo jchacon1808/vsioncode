@@ -32,11 +32,23 @@ pulsar, no si se permite pulsar.
 ```bash
 cargo fmt
 cargo clippy --all-targets -- -D warnings
-cargo test --release          # 415 unitarias + 10 de circuito + 2 de terminal
+cargo test --release          # 428 unitarias + 10 de circuito + 2 de terminal (solo Unix)
 cargo test --release --doc    # se olvida con facilidad y falla
 shellcheck instalar.sh        # se ejecuta en la máquina de quien instala
 ls -l target/release/vsioncode  # el peso es una característica declarada
 ```
+
+Y si se ha tocado `pty.rs`, `rutas.rs`, `privado.rs`, `agente.rs` o cualquier
+`#[cfg]`, también la otra rama — que no la ve nadie hasta que el CI la ve:
+
+```bash
+cargo clippy --target x86_64-pc-windows-gnu --all-targets -- -D warnings
+```
+
+Necesita `mingw-w64` y `rustup target add x86_64-pc-windows-gnu`. Windows no
+está soportado (ver `RUTA.md` §3.6), pero el código de esa rama está escrito y
+**un `cfg` que se apaga no falla: desaparece**, así que sin compilar los dos
+lados se rompe uno de ellos sin enterarse.
 
 Sobre los doctests: los ejemplos que contienen bloques con vallas de tres
 acentos graves necesitan una valla exterior de **cuatro**, o rustdoc intenta

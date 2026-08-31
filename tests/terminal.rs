@@ -11,6 +11,14 @@
 //! y no mira lo que dibuja, sino lo que enciende y lo que apaga. La regla es
 //! una sola y vale para los modos que hay hoy y para los que se añadan: cada
 //! `CSI ? n h` tiene que tener su `CSI ? n l`.
+//!
+//! **Solo Unix, y no por pereza:** la prueba mata el proceso con `kill -TERM`
+//! y `kill -HUP`, y en Windows esas señales no existen —la consola manda
+//! `CTRL_CLOSE` y `CTRL_SHUTDOWN`, que hay que provocar desde el proceso
+//! padre—. Escribir la versión de allí es un banco de pruebas distinto, no una
+//! traducción de este. Mientras tanto, en Windows el punto de «cerrar y que el
+//! terminal quede como estaba» se comprueba a mano.
+#![cfg(unix)]
 
 use std::collections::BTreeSet;
 use std::io::Read;

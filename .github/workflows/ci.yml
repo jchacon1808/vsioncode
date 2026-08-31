@@ -59,3 +59,46 @@ jobs:
             echo "::error::El binario ha superado el límite declarado."
             exit 1
           fi
+
+  # Windows todavía no está soportado —ver `docs/RUTA.md` §3.6—, pero el puerto se
+  # hace contra este runner y no contra una máquina prestada: las imágenes de
+  # GitHub traen Git for Windows, así que aquí dentro hay un bash de verdad
+  # bajo ConPTY, que es justo el único riesgo capaz de tumbar el plan.
+  #
+  # Cada fase del puerto entra con su prueba pasando aquí antes de escribirse
+  # la siguiente, y no al revés.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows
+
+      # El bash de Git for Windows viene en la imagen, pero eso es una promesa
+      # de la imagen y no un contrato. Si un día deja de estar, esto lo dice en
+      # una línea en vez de dejar veinte pruebas cayéndose sin explicación.
+      - name: Está el bash de Git for Windows
+        shell: pwsh
+        run: |
+          $bash = "$env:ProgramFiles\Git\bin\bash.exe"
+          if (-not (Test-Path $bash)) {
+            Write-Error "no está $bash, y de ahí cuelga todo lo de abajo"
+            exit 1
+          }
+          & $bash --version
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      # Aquí está lo que de verdad se viene a comprobar: `circuito.rs` arranca
+      # ese bash bajo ConPTY y mira si el registro capta comando, salida y
+      # código de salida. Es el único riesgo capaz de tumbar el puerto entero,
+      # y es la única forma de verlo sin un Windows delante.
+      - name: Tests
+        run: cargo test --release

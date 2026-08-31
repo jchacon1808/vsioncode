@@ -127,10 +127,20 @@ salida único —`$?` es un booleano—, así que no hay captura posible; un bas
 verdad deja intacto `shell/vsion-init.bash`, que ya lleva guardas por versión,
 y salva las 1.632 líneas de `safety.rs`, que clasifican comandos POSIX.
 
-No se empieza hasta que haya una máquina con Windows donde abrirlo: el puerto
-toca el pseudoterminal, el lanzamiento de procesos y las rutas —las tres zonas
-donde este proyecto ya sabe que viven sus fallos— y `cargo test` no alcanza
-ninguna.
+El trabajo está **escrito y compilando** desde el 31 de agosto de 2026: el
+shell busca Git Bash donde el instalador lo deja, las rutas se traducen en las
+cuatro fronteras por donde cruzan, el `.env` se cierra con una ACL en vez de
+con tres bits de modo, y el clasificador dice cuándo un comando se sale de
+POSIX. Un runner `windows-latest` lo comprueba en cada cambio, `tests/circuito.rs`
+incluido — que es el que arranca un bash de verdad bajo ConPTY.
+
+**No está soportado, y no se anunciará hasta que alguien lo haya abierto.** El
+puerto toca el pseudoterminal, el lanzamiento de procesos y las rutas —las tres
+zonas donde este proyecto ya sabe que viven sus fallos—, y ahí `cargo test` no
+alcanza: si `vim` se pinta bien dentro del panel, si `Ctrl+C` corta lo que tiene
+que cortar, si al salir el terminal queda como estaba. Un repositorio que
+promete Windows y se cuelga al arrancar hace más daño que un «solo Linux» dicho
+con claridad.
 
 ### 3.7 Documentación en inglés
 
