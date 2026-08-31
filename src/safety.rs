@@ -793,6 +793,38 @@ fn por_sus_banderas(name: &str, words: &[&str]) -> Option<Verdict> {
             (!resto.is_empty()).then(|| classify_simple(&resto.join(" ")))
         }
 
+        // Las puertas que sacan de POSIX, que es el único mundo que este
+        // módulo sabe leer. Desde Git Bash se llama a Windows con estas tres.
+        //
+        // **No suben el nivel**: un comando desconocido ya cae en «modifica»,
+        // y `powershell -c "Get-Date"` es una consulta —marcarlo de rojo sería
+        // el aviso que sobra—. Lo que se añade es el motivo, que es lo que
+        // aquí de verdad falta: que lo de dentro **no se ha clasificado**.
+        // Es lo contrario de `bash -c`, donde sí se mira dentro.
+        "cmd" | "cmd.exe" | "powershell" | "powershell.exe" | "pwsh" | "pwsh.exe" => {
+            (!args.is_empty()).then(|| {
+                veredicto(
+                    Risk::Caution,
+                    format!("«{name}» sale del shell, y lo que hace dentro no se puede leer"),
+                )
+            })
+        }
+
+        // El registro de Windows es `/etc` y media configuración del sistema
+        // en un solo sitio, y `reg delete` no tiene papelera ni confirmación.
+        // Manda el verbo, como en `ip`: `reg query` lee y no molesta.
+        "reg" | "reg.exe" => match args.first().map(|v| v.to_ascii_lowercase()).as_deref() {
+            Some("delete") => Some(veredicto(
+                Risk::Danger,
+                "«reg delete» borra del registro de Windows, y de ahí no se vuelve",
+            )),
+            Some("add" | "copy" | "import" | "restore" | "load" | "unload") => Some(veredicto(
+                Risk::Caution,
+                "«reg» cambia el registro de Windows",
+            )),
+            _ => None,
+        },
+
         // `ip addr` lista y `ip addr add` cambia la red: manda el verbo.
         //
         // El verbo cuenta desde tres letras: `add`, `del`, `set`. Menos que
@@ -1235,6 +1267,42 @@ mod tests {
         assert_eq!(r("sudo rm -rf /"), Risk::Danger);
         assert_eq!(r("sudo mkfs.ext4 /dev/sda1"), Risk::Danger);
         assert_eq!(r("sudo dd if=x of=/dev/sda"), Risk::Danger);
+    }
+
+    /// Salir de POSIX no sube el nivel —ya era «modifica» por desconocido—,
+    /// pero sí tiene que decir por qué: que lo de dentro no se ha mirado.
+    #[test]
+    fn las_puertas_a_windows_dicen_que_no_se_leen() {
+        for c in [
+            "powershell -c Get-Date",
+            "powershell.exe -Command Get-Process",
+            "pwsh -c ls",
+            "cmd.exe /c dir",
+            "cmd /c echo hola",
+        ] {
+            let v = classify(c);
+            assert_eq!(v.risk, Risk::Caution, "{c}");
+            assert!(
+                v.reason
+                    .as_deref()
+                    .unwrap_or("")
+                    .contains("no se puede leer"),
+                "{c}: {:?}",
+                v.reason
+            );
+        }
+        // Sin nada detrás no ejecutan nada de nadie: abren una sesión.
+        assert_eq!(classify("powershell").reason, None);
+    }
+
+    /// `reg query` lee. `reg delete` es el `rm -rf` del registro.
+    #[test]
+    fn en_el_registro_manda_el_verbo() {
+        assert_eq!(r("reg query HKLM\\SOFTWARE\\GitForWindows"), Risk::Caution);
+        assert_eq!(classify("reg query HKLM\\SOFTWARE").reason, None);
+        assert_eq!(r("reg add HKCU\\Environment /v FOO /d 1"), Risk::Caution);
+        assert_eq!(r("reg delete HKLM\\SOFTWARE\\Microsoft /f"), Risk::Danger);
+        assert_eq!(r("reg.exe delete HKCU\\Environment /v FOO"), Risk::Danger);
     }
 
     #[test]
