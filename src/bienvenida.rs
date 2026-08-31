@@ -509,6 +509,33 @@ fn guardar_clave_en(ruta: &Path, variable: &str, clave: &str) -> std::io::Result
     Ok(())
 }
 
+/// La ruta del `.env`, escrita como una cadena que TOML sabe leer.
+///
+/// No se puede meter una ruta entre comillas y ya: en TOML lo que va entre
+/// comillas es una cadena **básica**, donde la barra invertida escapa. En
+/// Windows `env_file = "C:\Users\..."` no es una ruta, es un `\U` a medias, y
+/// el fichero entero deja de parsearse —«too few unicode value digits»—. O sea:
+/// la puesta en marcha escribía una configuración que el propio programa no
+/// podía volver a leer, y solo allí.
+///
+/// Lo decide `toml` y no un escapado a mano: la biblioteca es la autoridad
+/// sobre su formato y elige la forma literal `'...'` cuando hace falta. Aquí
+/// escaparlo a ojo sería volver a apostar contra el mismo problema.
+fn env_file_toml() -> String {
+    env_file_toml_de(&ruta_env())
+}
+
+/// Lo mismo, sobre una ruta dada, para poder probarlo con una de Windows sin
+/// estar en Windows. `ruta_env()` mira la configuración de la máquina, y en
+/// Linux nunca trae una barra invertida: una prueba que la use no puede
+/// cazar este fallo.
+fn env_file_toml_de(ruta: &Path) -> String {
+    format!(
+        "env_file = {}",
+        toml::Value::String(ruta.display().to_string())
+    )
+}
+
 /// Compone el `proveedores.toml` con lo elegido.
 ///
 /// Se genera entero en vez de editarse: en la primera puesta en marcha no hay
@@ -530,7 +557,7 @@ pub fn componer_toml(elegidos: &[usize], por_defecto: Option<usize>) -> String {
          # terminal es lo que más se nota. Cada familia entiende uno de los dos.\n\n",
     );
 
-    t.push_str(&format!("env_file = \"{}\"\n", ruta_env().display()));
+    t.push_str(&format!("{}\n", env_file_toml()));
 
     if let Some(i) = por_defecto {
         t.push_str(&format!(
@@ -583,12 +610,7 @@ pub fn fusionar_toml(previo: &str, elegidos: &[usize], por_defecto: Option<usize
     };
 
     let mut tope = primer_bloque;
-    fijar(
-        "env_file",
-        format!("env_file = \"{}\"", ruta_env().display()),
-        &mut lineas,
-        &mut tope,
-    );
+    fijar("env_file", env_file_toml(), &mut lineas, &mut tope);
     if let Some(i) = por_defecto {
         fijar(
             "por_defecto",
@@ -706,6 +728,40 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// El fallo que solo se veía en Windows: en TOML lo que va entre comillas
+    /// es una cadena **básica**, y ahí la barra invertida escapa. Con
+    /// `env_file = "C:\Users\..."` el `\U` deja el fichero entero sin
+    /// parsear, así que la puesta en marcha escribía una configuración que el
+    /// propio programa no podía volver a leer.
+    ///
+    /// Se prueba desde aquí porque no hace falta Windows para escribir una
+    /// ruta de Windows: hace falta no dar por hecho que todas las rutas se
+    /// parecen a las de casa.
+    #[test]
+    fn una_ruta_de_windows_no_rompe_el_toml() {
+        let ruta = Path::new(r"C:\Users\runneradmin\AppData\Roaming\vsioncode\.env");
+        let linea = env_file_toml_de(ruta);
+
+        let leido: toml::Table = linea
+            .parse()
+            .unwrap_or_else(|e| panic!("el TOML no se puede volver a leer: {e}\n{linea}"));
+        assert_eq!(
+            leido["env_file"].as_str().unwrap(),
+            r"C:\Users\runneradmin\AppData\Roaming\vsioncode\.env",
+            "la ruta tiene que volver entera"
+        );
+    }
+
+    /// Y la de Linux sigue saliendo con comillas normales, que es lo que
+    /// cualquiera espera ver al abrir el fichero.
+    #[test]
+    fn la_ruta_de_siempre_no_cambia_de_aspecto() {
+        assert_eq!(
+            env_file_toml_de(Path::new("/home/juan/.config/vsioncode/.env")),
+            r#"env_file = "/home/juan/.config/vsioncode/.env""#
+        );
     }
 
     /// Una carpeta propia por prueba: las que tocan disco corren en paralelo
