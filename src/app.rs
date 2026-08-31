@@ -1108,7 +1108,13 @@ impl App {
                     }
                 }
             }
-            Marker::Cwd(p) => self.ledger.set_cwd(p),
+            // La frontera de entrada: el shell dice `/c/Users/...` y de aquí
+            // para dentro solo hay rutas nativas. Traducir aquí y no en cada
+            // sitio que lee la `cwd` —la barra, el contexto del modelo, el
+            // lector de los subagentes— es lo que evita traducir dos veces.
+            Marker::Cwd(p) => self
+                .ledger
+                .set_cwd(crate::rutas::a_windows(&p).into_owned()),
             Marker::PromptStart | Marker::PromptEnd => {}
         }
     }

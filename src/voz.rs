@@ -204,9 +204,7 @@ impl Motores {
 }
 
 fn en_path(nombre: &str) -> bool {
-    std::env::var_os("PATH")
-        .map(|p| std::env::split_paths(&p).any(|d| d.join(nombre).is_file()))
-        .unwrap_or(false)
+    crate::rutas::en_el_path(nombre)
 }
 
 /// El oyente.

@@ -202,6 +202,10 @@ fn normalizar(pieza: &str) -> Option<PathBuf> {
     } else {
         p
     };
+    // La otra frontera de entrada: lo que suelta la terminal viene en la
+    // forma del shell, y aquí abajo se va a llamar a `std::fs`.
+    let nativa = crate::rutas::a_windows(p);
+    let p = nativa.as_ref();
     let expandida = match p.strip_prefix("~/") {
         Some(resto) => dirs::home_dir()?.join(resto),
         None => PathBuf::from(p),

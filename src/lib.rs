@@ -51,6 +51,7 @@ pub mod plan;
 pub mod proveedores;
 pub mod pty;
 pub mod raton;
+pub mod rutas;
 pub mod safety;
 pub mod skills;
 pub mod slash;

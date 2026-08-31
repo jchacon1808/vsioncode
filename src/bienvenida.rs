@@ -234,7 +234,7 @@ impl Bienvenida {
             por_defecto,
             error: None,
             resumen: Vec::new(),
-            hay_claude: hay_en_path("claude"),
+            hay_claude: crate::rutas::en_el_path("claude"),
         }
     }
 
@@ -308,13 +308,6 @@ impl Bienvenida {
         let s = &SERVICIOS[i];
         !s.variable.is_empty() && std::env::var(s.variable).is_ok_and(|v| !v.trim().is_empty())
     }
-}
-
-/// ¿Está este programa en el `PATH`?
-fn hay_en_path(programa: &str) -> bool {
-    std::env::var_os("PATH")
-        .map(|p| std::env::split_paths(&p).any(|d| d.join(programa).is_file()))
-        .unwrap_or(false)
 }
 
 /// La ruta con `~` en lugar de la carpeta personal.

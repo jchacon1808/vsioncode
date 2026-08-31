@@ -469,15 +469,7 @@ pub fn resolver(
 ///
 /// A mano y sin dependencias: `which` es recorrer el `PATH` y mirar si existe.
 pub fn hay_daemon(binario: &str) -> bool {
-    if binario.contains('/') {
-        return std::path::Path::new(binario).is_file();
-    }
-    let Ok(rutas) = std::env::var("PATH") else {
-        return false;
-    };
-    rutas
-        .split(':')
-        .any(|d| std::path::Path::new(d).join(binario).is_file())
+    crate::rutas::en_el_path(binario)
 }
 
 /// Lanza un subagente y espera su respuesta.

@@ -268,9 +268,12 @@ fn un_heredoc_escribe_el_fichero_en_vez_de_colgar_el_shell() {
     let fichero = dir.join("notas.md");
     let _ = std::fs::remove_file(&fichero);
 
+    // La ruta se le escribe **al shell**, así que va en la forma del shell.
+    // Con la nativa, en Windows las barras invertidas de `C:\Users\...` se las
+    // come bash como escapes y el fichero acaba en otro sitio, o en ninguno.
     let heredoc = format!(
         "cat > {} <<'FIN'\n# Título\ncon **dos** líneas\nFIN",
-        fichero.display()
+        vsioncode::rutas::a_posix(&fichero.display().to_string())
     );
 
     // Tal y como lo manda el agente: con los saltos de línea intactos.

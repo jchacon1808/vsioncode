@@ -546,6 +546,13 @@ fn trocear(
     separa_m: &str,
     cambia_m: &str,
 ) -> Option<Edicion> {
+    // El modelo escribe la ruta mirando la `cwd` que le damos, pero también
+    // copia el estilo de lo que ha visto un millón de veces, que es POSIX. Sin
+    // traducir, un `/c/Users/...` no cuenta como absoluto en Windows y se
+    // colgaría de la raíz del proyecto: se editaría un fichero que no es, o
+    // ninguno, y sin ruido.
+    let nativa = crate::rutas::a_windows(ruta);
+    let ruta = nativa.as_ref();
     let ruta_completa = if Path::new(ruta).is_absolute() {
         PathBuf::from(ruta)
     } else {
