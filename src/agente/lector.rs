@@ -430,11 +430,21 @@ mod tests {
         );
     }
 
+    /// Un fichero del sistema que existe seguro y está fuera del proyecto. La
+    /// prueba usaba `/etc/passwd` a secas y en Windows no existe: allí el
+    /// lector contestaba «no existe» —que es cierto— en vez de «fuera del
+    /// directorio», y la prueba fallaba sin que la defensa tuviera nada malo.
+    /// Para comprobar que **no se sale**, el fichero de fuera tiene que estar.
+    #[cfg(windows)]
+    const FUERA: &str = r"C:\Windows\win.ini";
+    #[cfg(not(windows))]
+    const FUERA: &str = "/etc/passwd";
+
     #[test]
     fn no_se_sale_del_directorio() {
         let l = Lector::nuevo(env!("CARGO_MANIFEST_DIR"));
         let fuera = l.atender(&Peticion::Leer {
-            ruta: "/etc/passwd".into(),
+            ruta: FUERA.into(),
             desde: None,
             hasta: None,
         });

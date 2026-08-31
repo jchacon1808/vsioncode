@@ -1008,7 +1008,13 @@ mod tests {
 
     /// Dos vsioncode abiertos a la vez no pueden pisarse el fichero de la voz
     /// ni callarse el uno al otro.
+    /// Solo Unix: lo que comprueba es que el patrón de `pkill` alcance a la
+    /// reproducción propia y no a la de otra sesión. En Windows no hay `pkill`
+    /// ni ALSA —la voz está apagada por diseño, `puede_hablar()` es falso—, así
+    /// que allí esto no prueba nada del producto: prueba cómo se juntan dos
+    /// rutas. Apagarla es más honesto que hacerla pasar.
     #[test]
+    #[cfg(unix)]
     fn cada_sesion_tiene_sus_ficheros_de_voz() {
         assert_ne!(
             ruta_dicho(0),

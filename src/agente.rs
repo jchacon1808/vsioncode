@@ -677,7 +677,18 @@ mod tests {
 
     /// Un binario que existe seguro, para las pruebas que necesitan «hay
     /// claude». Lo que se comprueba es la decisión, no el proceso.
-    const HAY: &str = "/bin/sh";
+    /// Un binario que existe seguro, para las pruebas que necesitan «hay
+    /// daemon». `/bin/sh` no vale: en Windows no existe, y allí estas pruebas
+    /// no comprobaban lo suyo sino que faltaba un fichero de Unix.
+    ///
+    /// El ejecutable que corre la prueba existe siempre y en los dos sistemas,
+    /// que es exactamente lo que hace falta.
+    fn hay() -> String {
+        std::env::current_exe()
+            .expect("el ejecutable de la prueba tiene que existir")
+            .display()
+            .to_string()
+    }
     const NO_HAY: &str = "/no/existe/claude";
 
     fn modelo(id: &str, nota: &str) -> ModeloToml {
@@ -724,7 +735,7 @@ mod tests {
     /// hablar con todos sus modelos y delegar solo en tres.
     #[test]
     fn se_delega_en_lo_que_hay_configurado() {
-        let v = posibles(&fichero(), &HashMap::new(), HAY);
+        let v = posibles(&fichero(), &HashMap::new(), &hay());
         let nombres: Vec<&str> = v.iter().map(|p| p.nombre.as_str()).collect();
         assert!(nombres.contains(&"gpt-oss-120b"), "{nombres:?}");
         assert!(nombres.contains(&"qwen3.6-27b"), "{nombres:?}");
@@ -757,7 +768,7 @@ mod tests {
         // Con el proceso, en cambio, están los alias de serie: es lo único que
         // hay la primera vez, antes de que exista el fichero.
         assert_eq!(
-            posibles(&Config::default(), &HashMap::new(), HAY).len(),
+            posibles(&Config::default(), &HashMap::new(), &hay()).len(),
             slash::MODELOS.len()
         );
     }
@@ -775,7 +786,7 @@ mod tests {
                 modelo("meta/llama-3.3-70b-instruct", ""),
             ],
         ));
-        let v = posibles(&cfg, &HashMap::new(), HAY);
+        let v = posibles(&cfg, &HashMap::new(), &hay());
         let nombres: Vec<&str> = v.iter().map(|p| p.nombre.as_str()).collect();
         assert!(nombres.contains(&"groq/gpt-oss-120b"), "{nombres:?}");
         assert!(nombres.contains(&"nvidia/gpt-oss-120b"), "{nombres:?}");
@@ -788,7 +799,7 @@ mod tests {
     fn un_proveedor_sin_clave_lo_dice_en_su_fila() {
         let mut cfg = fichero();
         cfg.proveedor[1].api_key = "env:NO_EXISTE_ESTA_CLAVE".into();
-        let v = posibles(&cfg, &HashMap::new(), HAY);
+        let v = posibles(&cfg, &HashMap::new(), &hay());
         let groq = v.iter().find(|p| p.nombre == "qwen3.6-27b").unwrap();
         assert!(groq.detalle.contains("falta la clave"), "{}", groq.detalle);
     }
@@ -798,12 +809,12 @@ mod tests {
     #[test]
     fn se_resuelve_por_el_nombre_y_por_el_id() {
         let (cfg, e) = (fichero(), HashMap::new());
-        let (n, _) = resolver(&cfg, &e, HAY, "qwen/qwen3.6-27b").unwrap();
+        let (n, _) = resolver(&cfg, &e, &hay(), "qwen/qwen3.6-27b").unwrap();
         assert_eq!(n, "qwen3.6-27b");
-        let (n, _) = resolver(&cfg, &e, HAY, "QWEN3.6-27B").unwrap();
+        let (n, _) = resolver(&cfg, &e, &hay(), "QWEN3.6-27B").unwrap();
         assert_eq!(n, "qwen3.6-27b");
-        assert!(resolver(&cfg, &e, HAY, "no-existe").is_none());
-        assert!(resolver(&cfg, &e, HAY, "  ").is_none());
+        assert!(resolver(&cfg, &e, &hay(), "no-existe").is_none());
+        assert!(resolver(&cfg, &e, &hay(), "  ").is_none());
         // Lo que no se ofrece tampoco se resuelve: sin proceso, no hay sonnet.
         assert!(resolver(&cfg, &e, NO_HAY, "sonnet").is_none());
     }
