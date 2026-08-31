@@ -166,15 +166,61 @@ impl Hilo {
 
 /// Un identificador de sesión para el daemon.
 ///
-/// Del generador del núcleo y no de una dependencia: `uuid` traería una crate
-/// entera para leer dieciséis bytes que el sistema ya sabe dar. vsioncode solo
-/// corre en Linux —el PTY ya cuenta con `/proc`—, y si el fichero no estuviera
-/// devolvemos `None` y todo funciona como antes de existir esto.
+/// Del generador del sistema y no de una dependencia: `uuid` traería una crate
+/// entera para dieciséis bytes que el sistema ya sabe dar. Si no se pudiera,
+/// devolvemos `None` y todo funciona como antes de existir esto — pero eso no
+/// es gratis: sin id, un relanzado del daemon no puede retomar la conversación
+/// y se pierde entera.
+///
+/// En Linux lo da el núcleo ya formateado. En Windows hay que armarlo, y no
+/// vale cualquier cosa: tiene que ser aleatorio de verdad, porque dos sesiones
+/// con el mismo id hacen que «empezar conversación nueva» retome la vieja.
+#[cfg(not(windows))]
 pub fn sesion_nueva() -> Option<String> {
     std::fs::read_to_string("/proc/sys/kernel/random/uuid")
         .ok()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
+}
+
+/// En Windows no hay `/proc`, así que se piden los dieciséis bytes al
+/// generador criptográfico del sistema y se les da forma de UUID versión 4.
+///
+/// `BCryptGenRandom` con `BCRYPT_USE_SYSTEM_PREFERRED_RNG` es la misma fuente
+/// que usa todo lo demás del sistema, y no hace falta abrir ni cerrar nada.
+#[cfg(windows)]
+pub fn sesion_nueva() -> Option<String> {
+    use windows_sys::Win32::Security::Cryptography::{
+        BCRYPT_USE_SYSTEM_PREFERRED_RNG, BCryptGenRandom,
+    };
+
+    let mut b = [0u8; 16];
+    let r = unsafe {
+        BCryptGenRandom(
+            std::ptr::null_mut(),
+            b.as_mut_ptr(),
+            b.len() as u32,
+            BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+        )
+    };
+    if r != 0 {
+        return None;
+    }
+
+    // Los cuatro bits de versión y los dos de variante, que es lo único que
+    // distingue un UUID v4 de dieciséis bytes cualesquiera.
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+
+    let h: String = b.iter().map(|x| format!("{x:02x}")).collect();
+    Some(format!(
+        "{}-{}-{}-{}-{}",
+        &h[0..8],
+        &h[8..12],
+        &h[12..16],
+        &h[16..20],
+        &h[20..32]
+    ))
 }
 
 /// Ajustes del backend.
@@ -923,7 +969,7 @@ mod tests {
     #[test]
     fn una_sesion_nueva_no_repite_la_anterior() {
         let (a, b) = (sesion_nueva(), sesion_nueva());
-        assert!(a.is_some(), "en Linux el generador del núcleo siempre está");
+        assert!(a.is_some(), "el generador del sistema tiene que estar");
         assert_ne!(a, b);
         let a = a.unwrap();
         assert_eq!(a.len(), 36, "un uuid con guiones: {a}");
