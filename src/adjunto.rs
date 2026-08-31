@@ -118,31 +118,7 @@ pub fn rutas(pegado: &str) -> Vec<PathBuf> {
         return salida;
     }
 
-    // Al soltar varios ficheros llegan separados por espacios y, si el nombre
-    // lleva espacios, escapados con barra. Se parte por espacios que no vengan
-    // precedidos de barra.
-    let mut piezas: Vec<String> = Vec::new();
-    let mut actual = String::new();
-    let mut escapando = false;
-    for c in limpio.chars() {
-        if escapando {
-            actual.push(c);
-            escapando = false;
-            continue;
-        }
-        match c {
-            '\\' => escapando = true,
-            ' ' | '\n' | '\t' => {
-                if !actual.is_empty() {
-                    piezas.push(std::mem::take(&mut actual));
-                }
-            }
-            _ => actual.push(c),
-        }
-    }
-    if !actual.is_empty() {
-        piezas.push(actual);
-    }
+    let piezas = trocear_pegado(limpio, !cfg!(windows));
 
     let mut salida = Vec::new();
     for p in piezas {
@@ -182,6 +158,57 @@ fn desescapar(s: &str) -> String {
         i += 1;
     }
     String::from_utf8_lossy(&salida).into_owned()
+}
+
+/// Parte lo pegado en las rutas que lo forman.
+///
+/// Al soltar varios ficheros llegan separados por espacios, y un nombre con
+/// espacios dentro llega de dos formas según el escritorio: escapado con barra
+/// invertida —lo normal en Linux— o entrecomillado, que es lo que pone Windows
+/// con «Copiar como ruta de acceso».
+///
+/// `escapa_la_barra` no es un parámetro por gusto. **En Windows la barra
+/// invertida no escapa: separa directorios.** Tratarla como escape convertía
+/// `C:\Users\juan\x.txt` en `C:Usersjuanx.txt`, así que ninguna ruta soltada
+/// se reconocía jamás — y sin ruido, porque el pegado seguía siendo texto y ya.
+/// Pasarlo por argumento es lo que permite probar las dos formas desde
+/// cualquiera de los dos sistemas.
+fn trocear_pegado(pegado: &str, escapa_la_barra: bool) -> Vec<String> {
+    let mut piezas: Vec<String> = Vec::new();
+    let mut actual = String::new();
+    let mut escapando = false;
+    let mut comilla: Option<char> = None;
+
+    for c in pegado.chars() {
+        if escapando {
+            actual.push(c);
+            escapando = false;
+            continue;
+        }
+        // Dentro de comillas todo es nombre, espacios incluidos.
+        if let Some(q) = comilla {
+            if c == q {
+                comilla = None;
+            } else {
+                actual.push(c);
+            }
+            continue;
+        }
+        match c {
+            '\\' if escapa_la_barra => escapando = true,
+            '"' | '\'' => comilla = Some(c),
+            ' ' | '\n' | '\t' => {
+                if !actual.is_empty() {
+                    piezas.push(std::mem::take(&mut actual));
+                }
+            }
+            _ => actual.push(c),
+        }
+    }
+    if !actual.is_empty() {
+        piezas.push(actual);
+    }
+    piezas
 }
 
 /// Deja una pieza pegada en una ruta utilizable.
@@ -375,6 +402,48 @@ mod tests {
         let p = std::env::temp_dir().join(format!("vsion-adj-{}-{nombre}", std::process::id()));
         std::fs::write(&p, contenido).unwrap();
         p
+    }
+
+    /// El fallo que solo se veía en Windows, y que dejaba la función inútil
+    /// allí: la barra invertida se comía como escape, así que de
+    /// `C:\Users\juan\x.txt` quedaba `C:Usersjuanx.txt` y ninguna ruta
+    /// soltada existía nunca.
+    #[test]
+    fn en_windows_la_barra_invertida_separa_y_no_escapa() {
+        assert_eq!(
+            trocear_pegado(r"C:\Users\juan\x.txt", false),
+            vec![r"C:\Users\juan\x.txt"]
+        );
+        // Y en Linux sigue escapando, que es como llegan los nombres con
+        // espacios desde el escritorio.
+        assert_eq!(
+            trocear_pegado(r"/home/juan/con\ espacio.txt", true),
+            vec!["/home/juan/con espacio.txt"]
+        );
+    }
+
+    /// Windows entrecomilla al copiar la ruta, y los espacios en sus rutas son
+    /// la norma —`C:\Program Files\...`—, así que sin esto un solo fichero
+    /// soltado se partía en dos trozos que no existen.
+    #[test]
+    fn lo_entrecomillado_es_un_solo_nombre() {
+        assert_eq!(
+            trocear_pegado(r#""C:\Program Files\x.txt""#, false),
+            vec![r"C:\Program Files\x.txt"]
+        );
+        assert_eq!(
+            trocear_pegado(r#""C:\a b\uno.txt" "C:\c d\dos.txt""#, false),
+            vec![r"C:\a b\uno.txt", r"C:\c d\dos.txt"]
+        );
+    }
+
+    /// Y lo de siempre no cambia: varias rutas sueltas separadas por espacios.
+    #[test]
+    fn varias_rutas_sueltas_siguen_siendo_varias() {
+        assert_eq!(
+            trocear_pegado("/tmp/uno.txt /tmp/dos.txt", true),
+            vec!["/tmp/uno.txt", "/tmp/dos.txt"]
+        );
     }
 
     #[test]
