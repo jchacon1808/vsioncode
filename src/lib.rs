@@ -48,6 +48,7 @@ pub mod ledger;
 pub mod marcado;
 pub mod marker;
 pub mod plan;
+pub mod privado;
 pub mod proveedores;
 pub mod pty;
 pub mod raton;

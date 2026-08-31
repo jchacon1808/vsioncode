@@ -85,11 +85,14 @@ vt100 = "0.16.2"
 
 # Solo en Windows, y solo para lo que no tiene equivalente portable: leer del
 # registro dónde se instaló Git for Windows —de ahí sale el `bash` que se
-# arranca—, preguntar si un proceso sigue vivo sin `/proc`, y cuánta memoria
-# queda sin `/proc/meminfo`. Son declaraciones, no código: en el binario no
-# pesan.
+# arranca—, preguntar si un proceso sigue vivo sin `/proc`, cuánta memoria
+# queda sin `/proc/meminfo`, y cerrar el fichero de las claves con una ACL, que
+# es como se escribe allí el `0o600`. Son declaraciones, no código: en el
+# binario no pesan.
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
     "Win32_System_Registry",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",

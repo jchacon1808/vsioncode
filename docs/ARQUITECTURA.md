@@ -67,6 +67,7 @@ consideración:
 | `skills.rs` | Descubrimiento y entrega de skills instaladas. |
 | `voz.rs` | Conversación hablada: reconocimiento (whisper vía `uv`) y síntesis (`piper` + `aplay`), en procesos aparte. |
 | `bienvenida.rs` | La configuración inicial: servicios sugeridos, claves y generación o fusión del TOML. |
+| `privado.rs` | Cerrar un fichero o una carpeta a su dueño: modo `600`/`700` en Unix, ACL de una entrada y sin herencia en Windows. Y comprobarlo leyéndolo de vuelta. |
 | `rutas.rs` | La frontera con el sistema de ficheros del shell: `/c/Users/...` ↔ `C:\Users\...`, y buscar un ejecutable en el `PATH` sin dar por hecho el separador ni la extensión. |
 | `app.rs` | Estado y bucle principal. Arquitectura Elm. |
 | `ui.rs` | Vista, función pura del estado. |

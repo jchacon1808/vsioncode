@@ -493,7 +493,17 @@ fn guardar_clave_en(ruta: &Path, variable: &str, clave: &str) -> std::io::Result
             .open(ruta)?;
         f.write_all(texto.as_bytes())?;
     }
-    #[cfg(not(unix))]
+    // En Windows no hay un `mode()` que dar al abrir: la ACL se hereda. Así
+    // que el fichero nace **vacío**, se cierra a su dueño, y solo entonces se
+    // le mete la clave. La ventana sigue existiendo, pero durante ella dentro
+    // no hay nada que leer, que es de lo que se trataba.
+    #[cfg(windows)]
+    {
+        std::fs::File::create(ruta)?;
+        crate::privado::cerrar(ruta)?;
+        std::fs::write(ruta, texto)?;
+    }
+    #[cfg(not(any(unix, windows)))]
     std::fs::write(ruta, texto)?;
 
     Ok(())
@@ -700,7 +710,6 @@ mod tests {
 
     /// Una carpeta propia por prueba: las que tocan disco corren en paralelo
     /// con las demás y no pueden pisarse el `.env`.
-    #[cfg(unix)]
     fn carpeta_de_prueba(nombre: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("vsion-clave-{}-{nombre}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
@@ -708,22 +717,73 @@ mod tests {
         d
     }
 
-    /// La clave no puede existir en disco ni un instante con los permisos de
-    /// la umask: cualquier otro usuario de la máquina la leería.
+    /// La clave no puede quedar en disco legible por nadie más: en Unix, con
+    /// los permisos de la umask; en Windows, con la ACL que baja heredada de
+    /// la carpeta de arriba. Es la misma garantía escrita de dos formas, así
+    /// que la prueba es una y se lee del sistema, no de lo que creemos haber
+    /// pedido.
     #[test]
-    #[cfg(unix)]
-    fn la_clave_se_guarda_con_permisos_600() {
-        use std::os::unix::fs::PermissionsExt;
-
+    fn la_clave_se_guarda_cerrada_a_su_dueno() {
         let d = carpeta_de_prueba("nueva");
         let ruta = d.join(".env");
         guardar_clave_en(&ruta, "GROQ_API_KEY", "gsk_0123456789abcdefghij").unwrap();
 
-        let modo = std::fs::metadata(&ruta).unwrap().permissions().mode() & 0o777;
+        let cerrado = crate::privado::esta_cerrado(&ruta).unwrap();
+        // En Unix además se sabe el número exacto, y conviene fijarlo: «nadie
+        // más» se cumple igual con 0400, pero entonces guardar la clave
+        // siguiente fallaría.
+        #[cfg(unix)]
+        let modo = {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::metadata(&ruta).unwrap().permissions().mode() & 0o777
+        };
         let texto = std::fs::read_to_string(&ruta).unwrap();
         let _ = std::fs::remove_dir_all(&d);
 
-        assert_eq!(modo, 0o600, "el .env solo lo lee su dueño");
+        assert!(cerrado, "el .env solo lo lee su dueño");
+        #[cfg(unix)]
+        assert_eq!(modo, 0o600);
+        assert!(texto.contains("GROQ_API_KEY=gsk_0123456789abcdefghij"));
+    }
+
+    /// Y la carpeta que lo guarda, igual: con ella abierta se ve qué
+    /// proveedores hay configurados y cuándo se tocaron las claves.
+    #[test]
+    fn la_carpeta_de_la_configuracion_tambien_queda_cerrada() {
+        let d = carpeta_de_prueba("carpeta").join("vsioncode");
+        crate::proveedores::crear_carpeta_privada(&d).unwrap();
+
+        let cerrada = crate::privado::esta_cerrado(&d).unwrap();
+        let _ = std::fs::remove_dir_all(d.parent().unwrap());
+
+        assert!(cerrada, "la carpeta de la configuración es de su dueño");
+    }
+
+    /// Un `.env` que ya estaba abierto queda cerrado al guardar en él. El
+    /// caso importa porque es el común: la primera clave crea el fichero y la
+    /// segunda lo encuentra hecho.
+    #[test]
+    fn un_env_que_ya_estaba_queda_cerrado() {
+        let d = carpeta_de_prueba("reabierto");
+        let ruta = d.join(".env");
+        std::fs::write(&ruta, "# claves\nOTRA_CLAVE=valor_de_antes\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&ruta, std::fs::Permissions::from_mode(0o644)).unwrap();
+        }
+
+        guardar_clave_en(&ruta, "GROQ_API_KEY", "gsk_0123456789abcdefghij").unwrap();
+
+        let cerrado = crate::privado::esta_cerrado(&ruta).unwrap();
+        let texto = std::fs::read_to_string(&ruta).unwrap();
+        let _ = std::fs::remove_dir_all(&d);
+
+        assert!(
+            cerrado,
+            "un .env que ya estaba abierto se cierra al tocarlo"
+        );
+        assert!(texto.contains("OTRA_CLAVE=valor_de_antes"));
         assert!(texto.contains("GROQ_API_KEY=gsk_0123456789abcdefghij"));
     }
 

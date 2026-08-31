@@ -415,7 +415,20 @@ pub(crate) fn crear_carpeta_privada(d: &std::path::Path) -> std::io::Result<()> 
             .mode(0o700)
             .create(d)
     }
-    #[cfg(not(unix))]
+    // En Windows los permisos no se pueden dar al crear: la carpeta nace con
+    // lo que herede de la de arriba y hay que cerrarla justo después. La
+    // ventana existe, y no se puede cerrar más —no hay un `mode()` que valga—;
+    // lo que sí se puede es que dentro de ella todavía no haya nada.
+    #[cfg(windows)]
+    {
+        let nueva = !d.exists();
+        std::fs::create_dir_all(d)?;
+        if nueva {
+            crate::privado::cerrar(d)?;
+        }
+        Ok(())
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         std::fs::create_dir_all(d)
     }
