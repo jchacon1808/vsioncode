@@ -19,3 +19,8 @@
 # El encargo de la sesión en curso, que lo escribe el usuario y se borra al cerrar.
 # Faltaba aquí, y por eso se coló dentro del commit 20514f2.
 /tarea.md
+
+# El plan del puerto a Windows: es una mesa de trabajo con estimaciones y
+# referencias a línea que envejecen solas, no documentación del producto. Lo
+# que de esto sea público va en docs/RUTA.md §3.6.
+/windows.md

@@ -119,7 +119,20 @@ que exige publicar en crates.io y, antes, decidir el nombre (ver §5).
 `release-plz` para versionar a partir de los mensajes de commit encaja bien con
 la convención del proyecto, donde cada commit cuenta una decisión.
 
-### 3.6 Documentación en inglés
+### 3.6 Windows nativo
+
+Hoy funciona por WSL2 y no hay versión nativa. El camino está decidido:
+**Git Bash, no PowerShell**. PowerShell no tiene `trap DEBUG` ni un código de
+salida único —`$?` es un booleano—, así que no hay captura posible; un bash de
+verdad deja intacto `shell/vsion-init.bash`, que ya lleva guardas por versión,
+y salva las 1.632 líneas de `safety.rs`, que clasifican comandos POSIX.
+
+No se empieza hasta que haya una máquina con Windows donde abrirlo: el puerto
+toca el pseudoterminal, el lanzamiento de procesos y las rutas —las tres zonas
+donde este proyecto ya sabe que viven sus fallos— y `cargo test` no alcanza
+ninguna.
+
+### 3.7 Documentación en inglés
 
 El contenido es bueno y el idioma limita el alcance en un repositorio público.
 La traducción va después de la distribución, no antes: primero conviene que haya
